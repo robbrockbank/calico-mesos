@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import sys
 import unittest
 from mock import patch, MagicMock
 from mock import Mock, ANY
@@ -278,22 +279,25 @@ class TestDispatch(unittest.TestCase):
         ({"command": "isolate"},)
     ])
     @patch('sys.stdin')
-    def test_dispatch_catches_bad_commands(self, args, m_stdin):
-        m_stdin.read.return_value = json.dumps(args)
+    @patch('select.select', return_value=([sys.stdin], [], []))
+    def test_dispatch_catches_bad_commands(self, args, m_select, m_stdin):
+        m_stdin.read.side_effect = [json.dumps(args), None]
         self.assertRaises(IsolatorException, calico_mesos.calico_mesos)
 
     @patch('sys.stdin')
-    def test_dispatch_catches_invalid_json(self, m_stdin):
-        m_stdin.read.return_value = '{"command: invalidjson'
+    @patch('select.select', return_value=([sys.stdin], [], []))
+    def test_dispatch_catches_invalid_json(self, m_select, m_stdin):
+        m_stdin.read.side_effect = ['{"command: invalidjson', None]
         self.assertRaises(IsolatorException, calico_mesos.calico_mesos)
 
     @patch('calico_mesos.isolate')
     @patch('sys.stdin')
-    def test_distpach_calls_isolate(self, m_stdin, m_isolate):
+    @patch('select.select', return_value=([sys.stdin], [], []))
+    def test_distpach_calls_isolate(self, m_select, m_stdin, m_isolate):
         # Load stdin.read to return input string
         input = {"args": {},
                 "command": "isolate"}
-        m_stdin.read.return_value = json.dumps(input)
+        m_stdin.read.side_effect = [json.dumps(input), None]
 
         # Call function
         calico_mesos.calico_mesos()
@@ -301,11 +305,12 @@ class TestDispatch(unittest.TestCase):
 
     @patch('calico_mesos.cleanup')
     @patch('sys.stdin')
-    def test_distpach_calls_cleanup(self, m_stdin, m_cleanup):
+    @patch('select.select', return_value=([sys.stdin], [], []))
+    def test_distpach_calls_cleanup(self, m_select, m_stdin, m_cleanup):
         # Load stdin.read to return input string
         input = {"args": {},
                 "command": "cleanup"}
-        m_stdin.read.return_value = json.dumps(input)
+        m_stdin.read.side_effect = [json.dumps(input), None]
 
         # Call function
         calico_mesos.calico_mesos()
@@ -313,11 +318,13 @@ class TestDispatch(unittest.TestCase):
 
     @patch('calico_mesos.allocate')
     @patch('sys.stdin')
-    def test_distpach_calls_allocate(self, m_stdin, m_allocate):
+    @patch('select.select', return_value=([sys.stdin], [], []))
+    def test_distpach_calls_allocate(self, m_select, m_stdin, m_allocate):
         # Load stdin.read to return input string
-        input = {"args": {},
+        input = {"args": {"arg1": "testValue", "arg2": 24},
                 "command": "allocate"}
-        m_stdin.read.return_value = json.dumps(input)
+        # Return a byte at a time.
+        m_stdin.read.side_effect = list(json.dumps(input)) + [None]
 
         # Call function
         calico_mesos.calico_mesos()
@@ -325,15 +332,71 @@ class TestDispatch(unittest.TestCase):
 
     @patch('calico_mesos.release')
     @patch('sys.stdin')
-    def test_distpach_calls_release(self, m_stdin, m_release):
+    @patch('select.select', return_value=([sys.stdin], [], []))
+    def test_distpach_calls_release(self, m_select, m_stdin, m_release):
         # Load stdin.read to return input string
         input = {"args": {},
                 "command": "release"}
-        m_stdin.read.return_value = json.dumps(input)
+        m_stdin.read.side_effect = [json.dumps(input), None]
 
         # Call function
         calico_mesos.calico_mesos()
         m_release.assert_called_with(input["args"])
+
+    @patch('calico_mesos.release')
+    @patch('sys.stdin')
+    @patch('select.select')
+    def test_distpach_calls_no_eof_release(self, m_select, m_stdin, m_release):
+        """
+        Test a read timeout, where a value set of data has been returned, but
+        we got stuck waiting for the EOF.
+        """
+        # Load stdin.read to return input string
+        input = {"args": {},
+                "command": "release"}
+        m_stdin.read.return_value = json.dumps(input)
+        m_select.side_effect = [([sys.stdin], [], []),
+                                ([], [], [])]
+
+        # Call function
+        calico_mesos.calico_mesos()
+        m_release.assert_called_with(input["args"])
+        self.assertEquals(m_stdin.read.call_count, 1)
+        self.assertEquals(m_select.call_count, 2)
+
+    @patch('calico_mesos.release')
+    @patch('sys.stdin')
+    @patch('select.select')
+    def test_distpach_calls_no_data(self, m_select, m_stdin, m_release):
+        """
+        Test a read timeout, where no data is returned.
+        """
+        # Load stdin.read to return input string
+        m_select.return_value = ([], [], [])
+
+        # Call function
+        self.assertRaises(IsolatorException, calico_mesos.calico_mesos)
+
+    @patch('calico_mesos.release')
+    @patch('sys.stdin')
+    @patch('select.select')
+    def test_distpach_calls_no_eof_invalid_data(self, m_select, m_stdin, m_release):
+        """
+        Test a read timeout, where only a partial JSON blob was received.
+        """
+        # Load stdin.read to return input string
+        input = {"args": {},
+                "command": "release"}
+        input_json = json.dumps(input)
+        m_stdin.read.side_effect = [input_json[:5], input_json[5:7]]
+        m_select.side_effect = [([sys.stdin], [], []),
+                                ([sys.stdin], [], []),
+                                ([], [], [])]
+
+        # Call function
+        self.assertRaises(IsolatorException, calico_mesos.calico_mesos)
+        self.assertEquals(m_stdin.read.call_count, 2)
+        self.assertEquals(m_select.call_count, 3)
 
 
 class TestDefaultProfile(unittest.TestCase):
