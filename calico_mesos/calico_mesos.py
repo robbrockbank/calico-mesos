@@ -24,6 +24,7 @@ import logging
 import logging.handlers
 import traceback
 import re
+import select
 from subprocess import check_output, CalledProcessError
 from netaddr import IPNetwork
 import socket
@@ -38,6 +39,10 @@ ERROR_MISSING_PID = "Missing pid"
 ERROR_UNKNOWN_COMMAND = "Unknown command: %s"
 ERROR_MISSING_ARGS = "Missing args"
 
+# Read timeouts (in s), and max number of timeouts before assuming EOF.
+READ_TIMEOUT = 2
+READ_MAX_BYTES = 1000
+
 datastore = IPAMClient()
 _log = logging.getLogger("CALICOMESOS")
 
@@ -50,7 +55,36 @@ def calico_mesos():
     plugin function.
     :return:
     """
-    stdin_raw_data = sys.stdin.read()
+    # Perform a non-blocking read of stdin.
+    read_list = [sys.stdin]
+    stdin_raw_reads = []
+
+    _log.info("Starting read from stdin")
+    while True:
+        # Check if there is any work on this FD.  If this times out then exit
+        # the loop - we should never have to wait too long for data, and it is
+        # essential we never block forever.
+        ready = select.select(read_list, [], [], READ_TIMEOUT)[0]
+        if not ready:
+            _log.error("Timed out waiting for data")
+            break
+
+        # Perform a non-blocking read, requesting a maximum number of bytes.
+        raw_read = sys.stdin.read(READ_MAX_BYTES)
+        if raw_read:
+            _log.debug("Read: %s", raw_read)
+            stdin_raw_reads.append(raw_read)
+        else:
+            # If nothing was read then this must be an EOF since we know that
+            # the select indicated work.
+            _log.debug("Read: EOF")
+            break
+
+    # It is possible that we timed out waiting for data.  In this case we
+    # continue attempting to parse the data we did read.  If we can't parse it
+    # then we'll just raise an IsolatorException.  We have already logged an
+    # error log above.
+    stdin_raw_data = "".join(stdin_raw_reads)
     _log.info("Received request: %s" % stdin_raw_data)
 
     # Convert input data to JSON object
