@@ -63,13 +63,14 @@ def calico_mesos():
     while True:
         # Check if there is any work on this FD.  If this times out then exit
         # the loop - we should never have to wait too long for data, and it is
-        # essential we never block forever.
+        # essential we do not block forever.
         ready = select.select(read_list, [], [], READ_TIMEOUT)[0]
         if not ready:
             _log.error("Timed out waiting for data")
             break
 
         # Perform a non-blocking read, requesting a maximum number of bytes.
+        _log.debug("Data ready to read")
         raw_read = sys.stdin.read(READ_MAX_BYTES)
         if raw_read:
             _log.debug("Read: %s", raw_read)
