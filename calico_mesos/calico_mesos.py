@@ -41,7 +41,7 @@ ERROR_MISSING_ARGS = "Missing args"
 
 # Read timeouts (in s), and max number of timeouts before assuming EOF.
 READ_TIMEOUT = 2
-READ_MAX_BYTES = 1000
+READ_MAX_BYTES = 1
 
 datastore = IPAMClient()
 _log = logging.getLogger("CALICOMESOS")
