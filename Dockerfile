@@ -35,10 +35,11 @@ RUN /build/mesos/base.sh && \
 #####################
 ##   Net-modules   ##
 #####################
-ENV NETMODULES_BRANCH integration/0.26
 ADD /dockerized-mesos/net-modules /build/net-modules/
 RUN /build/net-modules/base.sh && \
-    /build/net-modules/install.sh && \
+    /build/net-modules/install.sh
+ENV NETMODULES_BRANCH use-standard-io-calls
+RUN /build/net-modules/build.sh && \
     /build/net-modules/cleanup.sh
 
 ############

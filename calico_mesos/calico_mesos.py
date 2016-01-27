@@ -24,7 +24,7 @@ import logging
 import logging.handlers
 import traceback
 import re
-import select
+import time
 from subprocess import check_output, CalledProcessError
 from netaddr import IPNetwork
 import socket
@@ -41,7 +41,6 @@ ERROR_MISSING_ARGS = "Missing args"
 
 # Read timeouts (in s), and max number of timeouts before assuming EOF.
 READ_TIMEOUT = 2
-READ_MAX_BYTES = 1
 
 datastore = IPAMClient()
 _log = logging.getLogger("CALICOMESOS")
@@ -55,42 +54,24 @@ def calico_mesos():
     plugin function.
     :return:
     """
-    # Perform a non-blocking read of stdin.
-    read_list = [sys.stdin]
-    stdin_raw_reads = []
+    _log.info("File descriptors at start ")
+    pid = os.getpid()
+    ppid = os.getppid()
+    dirs1 = set(check_output(["ls", "-l", "/proc/%s/fd" % pid]).split("\n"))
+    pdirs1 = set(check_output(["ls", "-l", "/proc/%s/fd" % ppid]).split("\n"))
+    for d in dirs1:
+        _log.info("Ours: %s", d)
+    for d in pdirs1:
+        _log.info("Parents: %s", d)
 
+    # We only expect to read a single line, so stop as soon as we do.
     _log.info("Starting read from stdin")
-    while True:
-        # Check if there is any work on this FD.  If this times out then exit
-        # the loop - we should never have to wait too long for data, and it is
-        # essential we do not block forever.
-        ready = select.select(read_list, [], [], READ_TIMEOUT)[0]
-        if not ready:
-            _log.error("Timed out waiting for data")
-            break
-
-        # Perform a non-blocking read, requesting a maximum number of bytes.
-        _log.debug("Data ready to read")
-        raw_read = sys.stdin.read(READ_MAX_BYTES)
-        if raw_read:
-            _log.debug("Read: %s", raw_read)
-            stdin_raw_reads.append(raw_read)
-        else:
-            # If nothing was read then this must be an EOF since we know that
-            # the select indicated work.
-            _log.debug("Read: EOF")
-            break
-
-    # It is possible that we timed out waiting for data.  In this case we
-    # continue attempting to parse the data we did read.  If we can't parse it
-    # then we'll just raise an IsolatorException.  We have already logged an
-    # error log above.
-    stdin_raw_data = "".join(stdin_raw_reads)
-    _log.info("Received request: %s" % stdin_raw_data)
+    raw_line = sys.stdin.readline()
 
     # Convert input data to JSON object
+    _log.debug("Read: %s", raw_line)
     try:
-        stdin_json = json.loads(stdin_raw_data)
+        stdin_json = json.loads(raw_line)
     except ValueError as e:
         raise IsolatorException(str(e))
 
@@ -635,15 +616,18 @@ if __name__ == '__main__':
     except IsolatorException as e:
         _log.error(e)
         sys.stdout.write(_error_message(str(e)))
+        sys.stdout.flush()
         sys.exit(1)
     except Exception as e:
         _log.error(e)
         sys.stdout.write(_error_message("Unhandled error %s\n%s" %
                          (str(e), traceback.format_exc())))
+        sys.stdout.flush()
         sys.exit(1)
     else:
         if response == None:
             response = _error_message(None)
         _log.info("Request completed with response: %s" % response)
         sys.stdout.write(response)
+        sys.stdout.flush()
         sys.exit(0)
