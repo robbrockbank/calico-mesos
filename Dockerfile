@@ -38,7 +38,7 @@ RUN /build/mesos/base.sh && \
 ADD /dockerized-mesos/net-modules /build/net-modules/
 RUN /build/net-modules/base.sh && \
     /build/net-modules/install.sh
-ENV NETMODULES_BRANCH use-standard-io-calls
+ENV NETMODULES_BRANCH standard-io-use-newline
 RUN /build/net-modules/build.sh && \
     /build/net-modules/cleanup.sh
 

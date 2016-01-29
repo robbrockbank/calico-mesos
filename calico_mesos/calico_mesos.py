@@ -54,15 +54,19 @@ def calico_mesos():
     plugin function.
     :return:
     """
-    _log.info("File descriptors at start ")
-    pid = os.getpid()
-    ppid = os.getppid()
-    dirs1 = set(check_output(["ls", "-l", "/proc/%s/fd" % pid]).split("\n"))
-    pdirs1 = set(check_output(["ls", "-l", "/proc/%s/fd" % ppid]).split("\n"))
-    for d in dirs1:
-        _log.info("Ours: %s", d)
-    for d in pdirs1:
-        _log.info("Parents: %s", d)
+    #_log.info("Process list")
+    #ps = check_output(["ps", "-eaf"]).split("\n")
+    #for p in ps:
+    #    _log.info(ps)
+    #_log.info("File descriptors at start ")
+    #pid = os.getpid()
+    #ppid = os.getppid()
+    #dirs1 = set(check_output(["ls", "-l", "/proc/%s/fd" % pid]).split("\n"))
+    #pdirs1 = set(check_output(["ls", "-l", "/proc/%s/fd" % ppid]).split("\n"))
+    #for d in dirs1:
+    #    _log.info("Ours: %s", d)
+    #for d in pdirs1:
+    #    _log.info("Parents: %s", d)
 
     # We only expect to read a single line, so stop as soon as we do.
     _log.info("Starting read from stdin")
