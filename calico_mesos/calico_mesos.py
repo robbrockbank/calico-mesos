@@ -50,6 +50,7 @@ def calico_mesos():
     plugin function.
     :return:
     """
+    _log.info("About to read from stdin")
     stdin_raw_data = sys.stdin.read()
     _log.info("Received request: %s" % stdin_raw_data)
 

@@ -40,8 +40,8 @@ RUN /build/mesos/base.sh && \
 # But this allows docker to automatically invalidate the cache if changes were made upstream to the target branch
 # during the docker ADD instruction.
 ENV NETMODULES_BRANCH integration/0.27.0
-ADD https://github.com/mesosphere/net-modules/archive/${NETMODULES_BRANCH}.tar.gz .
-RUN tar -xvf *.tar.gz && mv net-modules-* /net-modules 
+#ADD https://github.com/mesosphere/net-modules/archive/${NETMODULES_BRANCH}.tar.gz .
+#RUN tar -xvf *.tar.gz && mv net-modules-* /net-modules
 ADD /dockerized-mesos/net-modules /build/net-modules/
 RUN /build/net-modules/base.sh && \
     /build/net-modules/install.sh && \

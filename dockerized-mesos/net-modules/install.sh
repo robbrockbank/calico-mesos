@@ -30,6 +30,10 @@ apt-get -qy install \
   --no-install-recommends
 
 # Isolator
+#mkdir -p /net-modules
+git clone https://github.com/karya0/net-modules.git /net-modules
+cd /net-modules && git checkout $NETMODULES_BRANCH
+git log -n 4
 mv /net-modules/isolator /
 cd /isolator
 
